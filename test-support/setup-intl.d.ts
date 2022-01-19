@@ -1,4 +1,5 @@
 /// <reference types="qunit" />
+/// <reference types="ember-qunit" />
 import type { TestContext as BaseTestContext } from 'ember-test-helpers';
 import type IntlService from 'ember-intl/services/intl';
 import type { TOptions } from 'ember-intl/services/intl';

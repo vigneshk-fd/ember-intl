@@ -47,7 +47,7 @@ export interface RelativeTimeFormatOptions {
 export default class FormatRelative extends Formatter<RelativeTimeFormatOptions> {
     static readonly type = "relative";
     createNativeFormatter: (locales: any, options: any) => Intl.RelativeTimeFormat;
-    get options(): readonly ("style" | "numeric" | "unit")[];
+    get options(): readonly (keyof RelativeTimeFormatOptions)[];
     format(locale: string | string[], value: ConstructorParameters<typeof Date>[0], formatOptions?: RelativeTimeFormatOptions & BaseOptions): string;
 }
 export {};
