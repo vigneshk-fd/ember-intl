@@ -4,7 +4,7 @@
  */
 import type { SafeString } from '@ember/template/-private/handlebars';
 import Formatter from './-base';
-import { MessageDescriptor } from '@formatjs/intl';
+import { IntlShape, MessageDescriptor } from '@formatjs/intl';
 import { PrimitiveType } from 'intl-messageformat';
 declare type MessageFormatOptions = Record<string, PrimitiveType>;
 /**
@@ -13,10 +13,10 @@ declare type MessageFormatOptions = Record<string, PrimitiveType>;
  */
 export default class FormatMessage extends Formatter<any> {
     static readonly type = "message";
-    format(locale: string | string[], stringOrDesc: string, options: MessageFormatOptions & {
+    format(intl: IntlShape<string>, stringOrDesc: string, options: MessageFormatOptions & {
         htmlSafe: true;
     }): SafeString;
-    format(locale: string | string[], stringOrDesc: MessageDescriptor, options?: MessageFormatOptions & {
+    format(intl: IntlShape<string>, stringOrDesc: MessageDescriptor, options?: MessageFormatOptions & {
         htmlSafe: boolean;
     }): SafeString;
 }

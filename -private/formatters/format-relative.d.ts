@@ -21,5 +21,5 @@ export declare type RelativeTimeFormatOptions = FormatRelativeTimeOptions & {
  */
 export default class FormatRelative extends Formatter<RelativeTimeFormatOptions> {
     static readonly type = "relative";
-    format(locale: string | string[], value: Parameters<IntlShape<string>['formatRelativeTime']>[0], formatOptions: RelativeTimeFormatOptions): string;
+    format(intl: IntlShape<string>, value: Parameters<IntlShape<string>['formatRelativeTime']>[0], formatOptions: RelativeTimeFormatOptions): string;
 }

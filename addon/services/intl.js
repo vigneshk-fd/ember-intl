@@ -8,7 +8,14 @@ import { makeArray } from '@ember/array';
 import Service from '@ember/service';
 import { next, cancel } from '@ember/runloop';
 
-import { FormatDate, FormatMessage, FormatNumber, FormatRelative, FormatTime } from '../-private/formatters';
+import {
+  FormatDate,
+  FormatMessage,
+  FormatNumber,
+  FormatRelative,
+  FormatTime,
+  FormatList,
+} from '../-private/formatters';
 import isArrayEqual from '../-private/utils/is-array-equal';
 import normalizeLocale from '../-private/utils/normalize-locale';
 import getDOM from '../-private/utils/get-dom';
@@ -18,6 +25,7 @@ import flatten from '../-private/utils/flatten';
 import EventEmitter from 'eventemitter3';
 import { tracked } from '@glimmer/tracking';
 import { dependentKeyCompat } from '@ember/object/compat';
+
 export default class extends Service {
   /**
    * Returns an array of registered locale names
@@ -74,6 +82,9 @@ export default class extends Service {
   /** @public **/
   formatDate = createFormatterProxy('date');
 
+  /** @public **/
+  formatList = createFormatterProxy('list');
+
   /** @private **/
   @tracked _locale = null;
 
@@ -102,19 +113,21 @@ export default class extends Service {
     super(...arguments);
 
     const initialLocale = this.locale || ['en-us'];
+    this._intls = {};
     this._ee = new EventEmitter();
     this.setLocale(initialLocale);
+
     this._owner = getOwner(this);
     this._formatters = this._createFormatters();
 
     if (!this._formats) {
       this._formats = this._owner.resolveRegistration('formats:main') || {};
     }
-    this._intls = {};
+
     this.onIntlError = this.onIntlError.bind(this);
     this.getIntl = this.getIntl.bind(this);
     this.getOrCreateIntl = this.getOrCreateIntl.bind(this);
-    this._ee = new EventEmitter();
+
     hydrate(this);
   }
 
@@ -194,10 +207,11 @@ export default class extends Service {
    * @param {String} locale Locale of intl obj to create
    */
   createIntl(locale, messages = {}) {
+    const resolvedLocale = Array.isArray(locale) ? locale[0] : locale;
     return createIntl(
       {
-        locale,
-        defaultLocale: locale,
+        locale: resolvedLocale,
+        defaultLocale: resolvedLocale,
         formats: this._formats,
         defaultFormats: this._formats,
         onError: this.onIntlError,
@@ -273,6 +287,7 @@ export default class extends Service {
     );
 
     this.locale = locale;
+    this.getOrCreateIntl(locale);
   }
 
   /** @public **/
@@ -315,16 +330,13 @@ export default class extends Service {
 
   /** @private */
   _createFormatters() {
-    const formatterConfig = {
-      getIntl: (locale) => this.getOrCreateIntl(locale),
-    };
-
     return {
-      message: new FormatMessage(formatterConfig),
-      relative: new FormatRelative(formatterConfig),
-      number: new FormatNumber(formatterConfig),
-      time: new FormatTime(formatterConfig),
-      date: new FormatDate(formatterConfig),
+      message: new FormatMessage(),
+      relative: new FormatRelative(),
+      number: new FormatNumber(),
+      time: new FormatTime(),
+      date: new FormatDate(),
+      list: new FormatList(),
     };
   }
   /**
@@ -343,13 +355,19 @@ export default class extends Service {
 function createFormatterProxy(name) {
   return function serviceFormatterProxy(value, formatOptions) {
     let locale;
-
+    let intl;
     if (formatOptions && formatOptions.locale) {
       locale = this._localeWithDefault(formatOptions.locale);
+      // Cannot use getOrCreateIntl since it triggers a re-render which
+      // might cause infinite loop
+      // This is also a case we're not optimizing for so let it take
+      // the slow path
+      intl = this.createIntl(locale);
     } else {
       locale = this.locale;
+      intl = this.getIntl(locale);
     }
 
-    return this._formatters[name].format(locale, value, formatOptions);
+    return this._formatters[name].format(intl, value, formatOptions);
   };
 }

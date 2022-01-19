@@ -10,5 +10,5 @@ import Formatter from './-base';
  */
 export default class FormatTime extends Formatter<FormatDateOptions> {
     static readonly type = "time";
-    format(locale: string | string[], ...[value, opts]: Parameters<IntlShape<string>['formatTime']>): string;
+    format(intl: IntlShape<string>, ...[value, opts]: Parameters<IntlShape<string>['formatTime']>): string;
 }

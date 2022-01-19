@@ -17,11 +17,8 @@ export interface BaseOptions {
  * @hide
  */
 export default abstract class FormatterBase<KnownOptions extends {}> {
-    protected readonly config: FormatterConfig;
-    protected readonly getIntl: (locale: string | string[]) => IntlShape<string>;
-    static type: keyof Formats | 'message';
-    constructor(config: FormatterConfig);
+    static type: keyof Formats | 'message' | 'list' | 'dateRange' | 'timeRange';
     get options(): readonly (keyof KnownOptions)[];
-    abstract format<T>(locale: string | string[], value: T, formatOptions?: KnownOptions & BaseOptions): string | SafeString;
-    abstract format(locale: string | string[], value: unknown, formatOptions?: KnownOptions & BaseOptions): string | SafeString;
+    abstract format<T>(intl: IntlShape<string>, value: T, formatOptions?: KnownOptions & BaseOptions): string | SafeString;
+    abstract format(intl: IntlShape<string>, value: unknown, formatOptions?: KnownOptions & BaseOptions): string | SafeString;
 }
