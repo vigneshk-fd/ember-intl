@@ -1,8 +1,9 @@
 /// <reference types="qunit" />
+/// <reference types="ember-qunit" />
 import type { TestContext as BaseTestContext } from 'ember-test-helpers';
 import type IntlService from 'ember-intl/services/intl';
 import type { TOptions } from 'ember-intl/services/intl';
-import type { Translations } from 'ember-intl/-private/store/translation';
+import { Formats, Translations } from 'ember-intl/types';
 export interface IntlTestContext {
     intl: IntlService;
 }
@@ -15,7 +16,7 @@ export interface SetupIntlOptions {
      * @defaultValue true
      */
     missingMessage?: boolean | ((key: string, locales: string[], options: TOptions) => string);
-    formats?: IntlService['formats'];
+    formats?: Formats;
 }
 /**
  * Calling this helper will install a special `missing-message` util that will

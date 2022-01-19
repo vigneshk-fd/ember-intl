@@ -3,24 +3,21 @@
  * Copyrights licensed under the New BSD License. See the accompanying LICENSE file for terms.
  */
 import type { SafeString } from '@ember/template/-private/handlebars';
-import IntlMessageFormat from 'intl-messageformat';
-import type { Formats } from '../../types';
-import type { FormatterConfig } from './-base';
-import type { TranslationAST } from '../store/translation';
+import Formatter from './-base';
+import { MessageDescriptor } from '@formatjs/intl';
+import { PrimitiveType } from 'intl-messageformat';
+declare type MessageFormatOptions = Record<string, PrimitiveType>;
 /**
  * @private
  * @hide
  */
-export default class FormatMessage {
+export default class FormatMessage extends Formatter<any> {
     static readonly type = "message";
-    protected readonly config: FormatterConfig;
-    protected readonly readFormatConfig: () => Formats;
-    constructor(config: FormatterConfig);
-    createNativeFormatter: (ast: TranslationAST, locales: string | string[], formatConfig?: Partial<Formats> | undefined) => IntlMessageFormat;
-    format(locale: string | string[], maybeAst: string | TranslationAST, options?: Partial<Record<string, unknown>> & {
-        htmlSafe?: false;
-    }): string;
-    format(locale: string | string[], maybeAst: string | TranslationAST, options: Partial<Record<string, unknown>> & {
+    format(locale: string | string[], stringOrDesc: string, options: MessageFormatOptions & {
         htmlSafe: true;
     }): SafeString;
+    format(locale: string | string[], stringOrDesc: MessageDescriptor, options?: MessageFormatOptions & {
+        htmlSafe: boolean;
+    }): SafeString;
 }
+export {};

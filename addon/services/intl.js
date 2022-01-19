@@ -3,8 +3,6 @@
  * Copyrights licensed under the New BSD License. See the accompanying LICENSE file for terms.
  */
 import { getOwner } from '@ember/application';
-import { computed, get, set } from '@ember/object';
-import Evented from '@ember/object/evented';
 import { assert } from '@ember/debug';
 import { makeArray } from '@ember/array';
 import Service from '@ember/service';
@@ -15,40 +13,41 @@ import isArrayEqual from '../-private/utils/is-array-equal';
 import normalizeLocale from '../-private/utils/normalize-locale';
 import getDOM from '../-private/utils/get-dom';
 import hydrate from '../-private/utils/hydrate';
-import TranslationContainer from '../-private/store/container';
-
-export default Service.extend(Evented, {
-  /** @public **/
-  formats: null,
-
+import { createIntl, createIntlCache, IntlErrorCode } from '@formatjs/intl';
+import flatten from '../-private/utils/flatten';
+import EventEmitter from 'eventemitter3';
+import { tracked } from '@glimmer/tracking';
+import { dependentKeyCompat } from '@ember/object/compat';
+export default class extends Service {
   /**
    * Returns an array of registered locale names
    *
    * @property locales
    * @public
    */
-  locales: computed.readOnly('_translationContainer.locales'),
+  get locales() {
+    return Object.keys(this._intls);
+  }
 
   /** @public **/
-  locale: computed('_locale', {
-    set(_, localeName) {
-      const proposed = makeArray(localeName).map(normalizeLocale);
+  set locale(localeName) {
+    const proposed = makeArray(localeName).map(normalizeLocale);
 
-      if (!isArrayEqual(proposed, this._locale)) {
-        set(this, '_locale', proposed);
-        cancel(this._timer);
-        this._timer = next(() => {
-          this.trigger('localeChanged');
-          this._updateDocumentLanguage(this._locale);
-        });
-      }
+    if (!isArrayEqual(proposed, this._locale)) {
+      this._locale = proposed;
 
-      return this._locale;
-    },
-    get() {
-      return get(this, '_locale');
-    },
-  }),
+      cancel(this._timer);
+      this._timer = next(() => {
+        this._ee.emit('localeChanged');
+        this._updateDocumentLanguage(this._locale);
+      });
+    }
+  }
+
+  @dependentKeyCompat
+  get locale() {
+    return this._locale;
+  }
 
   /**
    * Returns the first locale of the currently active locales
@@ -56,88 +55,96 @@ export default Service.extend(Evented, {
    * @property primaryLocale
    * @public
    */
-  primaryLocale: computed.readOnly('locale.0'),
+  get primaryLocale() {
+    return this.locale[0];
+  }
 
   /** @public **/
-  formatRelative: createFormatterProxy('relative'),
+  formatRelative = createFormatterProxy('relative');
 
   /** @public **/
-  formatMessage: createFormatterProxy('message'),
+  formatMessage = createFormatterProxy('message');
 
   /** @public **/
-  formatNumber: createFormatterProxy('number'),
+  formatNumber = createFormatterProxy('number');
 
   /** @public **/
-  formatTime: createFormatterProxy('time'),
+  formatTime = createFormatterProxy('time');
 
   /** @public **/
-  formatDate: createFormatterProxy('date'),
+  formatDate = createFormatterProxy('date');
 
   /** @private **/
-  _translationContainer: null,
+  @tracked _locale = null;
 
   /** @private **/
-  _locale: null,
+  _timer = null;
 
   /** @private **/
-  _timer: null,
+  _formats = null;
 
   /** @private **/
-  _formatters: null,
+  _formatters = null;
+
+  /** @private */
+  @tracked _intls = null;
+
+  /**
+   * @private
+   * @type {EventEmitter}
+   */
+  _ee = null;
+
+  _cache = createIntlCache();
 
   /** @public **/
-  init() {
-    this._super(...arguments);
+  constructor() {
+    super(...arguments);
 
-    const initialLocale = get(this, 'locale') || ['en-us'];
-
+    const initialLocale = this.locale || ['en-us'];
+    this._ee = new EventEmitter();
     this.setLocale(initialLocale);
     this._owner = getOwner(this);
-    // Below issue can be ignored, as this is during the `init()` constructor.
-    // eslint-disable-next-line ember/no-assignment-of-untracked-properties-used-in-tracking-contexts
-    this._translationContainer = TranslationContainer.create();
     this._formatters = this._createFormatters();
 
-    if (!this.formats) {
-      this.formats = this._owner.resolveRegistration('formats:main') || {};
+    if (!this._formats) {
+      this._formats = this._owner.resolveRegistration('formats:main') || {};
     }
-
+    this._intls = {};
+    this.onIntlError = this.onIntlError.bind(this);
+    this.getIntl = this.getIntl.bind(this);
+    this.getOrCreateIntl = this.getOrCreateIntl.bind(this);
+    this._ee = new EventEmitter();
     hydrate(this);
-  },
+  }
 
   willDestroy() {
-    this._super(...arguments);
+    super.willDestroy(...arguments);
     cancel(this._timer);
-  },
+  }
+
+  onIntlError(err) {
+    if (err.code !== IntlErrorCode.MISSING_TRANSLATION) {
+      throw err;
+    }
+  }
 
   /** @private **/
   onError({ /* kind, */ error }) {
     throw error;
-  },
+  }
 
   /** @public **/
-  lookup(key, localeName) {
+  lookup(key, localeName, options = {}) {
     const localeNames = this._localeWithDefault(localeName);
     let translation;
 
     for (let i = 0; i < localeNames.length; i++) {
-      translation = this._translationContainer.lookup(localeNames[i], key);
-
-      if (translation !== undefined) {
-        break;
+      const messages = this.translationsFor(localeNames[i]);
+      if (!messages) {
+        continue;
       }
-    }
-
-    return translation;
-  },
-
-  /** @private **/
-  lookupAst(key, localeName, options = {}) {
-    const localeNames = this._localeWithDefault(localeName);
-    let translation;
-
-    for (let i = 0; i < localeNames.length; i++) {
-      translation = this._translationContainer.lookupAst(localeNames[i], key);
+      translation = messages[key];
 
       if (translation !== undefined) {
         break;
@@ -151,7 +158,54 @@ export default Service.extend(Evented, {
     }
 
     return translation;
-  },
+  }
+
+  /**
+   * @private
+   */
+  getIntl(locale) {
+    const resolvedLocale = Array.isArray(locale) ? locale[0] : locale;
+    return this._intls[resolvedLocale];
+  }
+
+  getOrCreateIntl(locale, messages) {
+    const resolvedLocale = Array.isArray(locale) ? locale[0] : locale;
+    const existingIntl = this._intls[resolvedLocale];
+    if (!existingIntl) {
+      this._intls = {
+        ...this._intls,
+        [resolvedLocale]: this.createIntl(resolvedLocale, messages),
+      };
+    } else if (messages) {
+      this._intls = {
+        ...this._intls,
+        [resolvedLocale]: this.createIntl(resolvedLocale, {
+          ...(existingIntl.messages || {}),
+          ...messages,
+        }),
+      };
+    }
+
+    return this._intls[resolvedLocale];
+  }
+
+  /**
+   * @private
+   * @param {String} locale Locale of intl obj to create
+   */
+  createIntl(locale, messages = {}) {
+    return createIntl(
+      {
+        locale,
+        defaultLocale: locale,
+        formats: this._formats,
+        defaultFormats: this._formats,
+        onError: this.onIntlError,
+        messages,
+      },
+      this._cache
+    );
+  }
 
   validateKeys(keys) {
     return keys.forEach((key) => {
@@ -160,7 +214,7 @@ export default Service.extend(Evented, {
         typeof key === 'string'
       );
     });
-  },
+  }
 
   /** @public **/
   t(key, options = {}) {
@@ -178,18 +232,29 @@ export default Service.extend(Evented, {
 
     for (let index = 0; index < keys.length; index++) {
       const key = keys[index];
-      const ast = this.lookupAst(key, options.locale, {
+      const message = this.lookup(key, options.locale, {
         ...options,
         // Note: last iteration will throw with the last key that was missing
         // in the future maybe the thrown error should include all the keys to help debugging
         resilient: keys.length - 1 !== index,
       });
 
-      if (ast) {
-        return this.formatMessage(ast, options);
+      // @formatjs/intl consider empty message to be an error
+      if (message === '' || typeof message === 'number') {
+        return message;
+      }
+
+      if (message) {
+        return this.formatMessage(
+          {
+            id: key,
+            defaultMessage: message,
+          },
+          options
+        );
       }
     }
-  },
+  }
 
   /** @public **/
   exists(key, localeName) {
@@ -197,28 +262,35 @@ export default Service.extend(Evented, {
 
     assert(`[ember-intl] locale is unset, cannot lookup '${key}'`, Array.isArray(localeNames) && localeNames.length);
 
-    return localeNames.some((localeName) => this._translationContainer.has(localeName, key));
-  },
+    return localeNames.some((localeName) => key in (this.getIntl(localeName)?.messages || {}));
+  }
 
   /** @public */
   setLocale(locale) {
-    set(this, 'locale', locale);
-  },
+    assert(
+      `[ember-intl] no locale has been set!  See: https://ember-intl.github.io/ember-intl/docs/quickstart#4-configure-ember-intl`,
+      locale
+    );
+
+    this.locale = locale;
+  }
 
   /** @public **/
   addTranslations(localeName, payload) {
-    this._translationContainer.push(normalizeLocale(localeName), payload);
-  },
+    const locale = normalizeLocale(localeName);
+    this.getOrCreateIntl(locale, flatten(payload));
+  }
 
   /** @public **/
   translationsFor(localeName) {
-    return this._translationContainer.findTranslationModel(normalizeLocale(localeName), false);
-  },
+    const locale = normalizeLocale(localeName);
+    return this.getIntl(locale)?.messages;
+  }
 
   /** @private **/
   _localeWithDefault(localeName) {
     if (!localeName) {
-      return get(this, '_locale') || [];
+      return this._locale || [];
     }
 
     if (typeof localeName === 'string') {
@@ -228,7 +300,7 @@ export default Service.extend(Evented, {
     if (Array.isArray(localeName)) {
       return localeName.map(normalizeLocale);
     }
-  },
+  }
 
   /** @private **/
   _updateDocumentLanguage(locales) {
@@ -239,13 +311,12 @@ export default Service.extend(Evented, {
       const html = dom.documentElement;
       html.setAttribute('lang', primaryLocale);
     }
-  },
+  }
 
   /** @private */
   _createFormatters() {
     const formatterConfig = {
-      onError: this.onError.bind(this),
-      readFormatConfig: () => this.formats,
+      getIntl: (locale) => this.getOrCreateIntl(locale),
     };
 
     return {
@@ -255,8 +326,19 @@ export default Service.extend(Evented, {
       time: new FormatTime(formatterConfig),
       date: new FormatDate(formatterConfig),
     };
-  },
-});
+  }
+  /**
+   * @private
+   * @param {Function} fn
+   * @returns {Function} unsubscribed from localeChanged
+   */
+  onLocaleChanged(...args) {
+    this._ee.on('localeChanged', ...args);
+    return () => {
+      this._ee.off('localeChanged', ...args);
+    };
+  }
+}
 
 function createFormatterProxy(name) {
   return function serviceFormatterProxy(value, formatOptions) {
@@ -265,7 +347,7 @@ function createFormatterProxy(name) {
     if (formatOptions && formatOptions.locale) {
       locale = this._localeWithDefault(formatOptions.locale);
     } else {
-      locale = get(this, 'locale');
+      locale = this.locale;
     }
 
     return this._formatters[name].format(locale, value, formatOptions);

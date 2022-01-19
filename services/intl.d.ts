@@ -1,14 +1,8 @@
-import Evented from '@ember/object/evented';
 import Service from '@ember/service';
 import { EmberRunTimer } from '@ember/runloop/types';
 import type { SafeString } from '@ember/template/-private/handlebars';
 
 import { FormatDate, FormatMessage, FormatNumber, FormatRelative, FormatTime } from '../-private/formatters';
-import TranslationContainer from '../-private/store/container';
-import { Formats } from '../types';
-import { MessageFormatElement } from 'intl-messageformat-parser';
-import type Translation from '../-private/store/translation';
-import type { TranslationAST } from '../-private/store/translation';
 
 export interface TOptions {
   default?: string | string[];
@@ -29,12 +23,7 @@ type FormatterProxy<T extends keyof IntlService['_formatters']> = (
  */
 type MissingMessage = string;
 
-export default class IntlService extends Service.extend(Evented) {
-  /**
-   * @public
-   */
-  readonly formats: Formats;
-
+export default class IntlService extends Service {
   /**
    * Returns an array of registered locale names
    *
@@ -63,19 +52,17 @@ export default class IntlService extends Service.extend(Evented) {
   // and duplicate the types here.
   // readonly formatMessage: FormatterProxy<'message'>;
   formatMessage(
-    maybeAst: string | TranslationAST,
+    maybeAst: string,
     options?: Partial<Record<string, unknown>> & { locale?: string | [string, ...string[]]; htmlSafe?: false }
   ): string;
   formatMessage(
-    maybeAst: string | TranslationAST,
+    maybeAst: string,
     options: Partial<Record<string, unknown>> & { locale?: string | [string, ...string[]]; htmlSafe: true }
   ): SafeString;
   formatMessage(
-    maybeAst: string | TranslationAST,
+    maybeAst: string,
     options?: Partial<Record<string, unknown>> & { locale?: string | [string, ...string[]]; htmlSafe?: boolean }
   ): string | SafeString;
-
-  private _translationContainer?: TranslationContainer;
 
   private _locale: string[];
 
@@ -87,13 +74,7 @@ export default class IntlService extends Service.extend(Evented) {
 
   private onError(info: { kind: unknown; error: unknown }): never;
 
-  lookup(key: string, localeName?: string | string[]): string | undefined;
-
-  lookupAst(
-    key: string,
-    localeName?: string | string[],
-    options?: { resilient: boolean }
-  ): MessageFormatElement[] | MissingMessage;
+  lookup(key: string, localeName?: string | string[], opts?: { resilient?: boolean }): string | undefined;
 
   private validateKeys(keys: string[]): void;
   private validateKeys(keys: unknown[]): void | never;
@@ -108,7 +89,7 @@ export default class IntlService extends Service.extend(Evented) {
 
   addTranslations(localeName: string, payload: unknown): void;
 
-  translationsFor(localeName: string): Translation | undefined;
+  translationsFor(localeName: string): Record<string, string>;
 
   private _localeWithDefault(localeName?: string | string[]): string[];
 
