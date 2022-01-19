@@ -1,4 +1,5 @@
 import { get } from '@ember/object';
+// eslint-disable-next-line ember/no-computed-properties-in-native-classes
 import type ComputedProperty from '@ember/object/computed';
 import EmptyObject from 'ember-intl/-private/utils/empty-object';
 import intl from './intl';
@@ -13,7 +14,7 @@ function partitionDynamicValuesAndStaticValues(options: Record<string, string | 
     const value = options[key];
     if (value instanceof Raw) {
       staticValues[key] = value.valueOf();
-    } else {
+    } else if (typeof value !== 'undefined') {
       dynamicValues[key] = value;
     }
   });

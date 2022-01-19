@@ -1,9 +1,10 @@
 import addTranslations from './add-translations';
 import { missingMessage } from './-private/serialize-translation';
 import type { TestContext as BaseTestContext } from 'ember-test-helpers';
+import { settled } from '@ember/test-helpers';
 import type IntlService from 'ember-intl/services/intl';
 import type { TOptions } from 'ember-intl/services/intl';
-import type { Translations } from 'ember-intl/-private/store/translation';
+import { Formats, Translations } from 'ember-intl/types';
 
 export interface IntlTestContext {
   intl: IntlService;
@@ -19,7 +20,7 @@ export interface SetupIntlOptions {
    */
   missingMessage?: boolean | ((key: string, locales: string[], options: TOptions) => string);
 
-  formats?: IntlService['formats'];
+  formats?: Formats;
 }
 
 /**
@@ -64,27 +65,29 @@ export default function setupIntl(
     translations = translationsOrOptions as Translations | undefined;
   }
 
-  hooks.beforeEach(function (this: TestContext) {
+  hooks.beforeEach(async function (this: TestContext) {
     if (typeof options?.missingMessage === 'function') {
       this.owner.register('util:intl/missing-message', options.missingMessage);
     } else if ((options?.missingMessage ?? true) === true) {
       this.owner.register('util:intl/missing-message', missingMessage);
     }
 
+    if (options?.formats) {
+      const factory = this.owner.factoryFor('service:intl');
+      this.owner.unregister('service:intl');
+      this.owner.register('formats:main', options.formats);
+      this.owner.register('service:intl', factory);
+    }
     this.intl = this.owner.lookup('service:intl');
 
-    if (options?.formats) {
-      this.intl.set('formats', options.formats);
+    if (locale) {
+      this.intl.setLocale(locale);
     }
+
+    if (translations) {
+      addTranslations(translations);
+    }
+
+    await settled();
   });
-
-  if (locale) {
-    hooks.beforeEach(function (this: TestContext) {
-      this.intl.setLocale(locale!);
-    });
-  }
-
-  if (translations) {
-    hooks.beforeEach(() => addTranslations(translations!));
-  }
 }

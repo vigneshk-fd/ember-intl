@@ -1,5 +1,4 @@
-import type { Translations } from 'ember-intl/-private/store/translation';
-declare const _default: (localeNameOrTranslations: string | Translations, translations?: Translations | undefined) => void;
+declare const _default: (localeNameOrTranslations: string | import("../addon/-private/utils/flatten").NestedStructure<string | number>, translations?: import("../addon/-private/utils/flatten").NestedStructure<string | number> | undefined) => void;
 /**
  * Invokes the `addTranslations` method of the `intl` service. The first
  * parameter, the `localeName`, is optional and will default to the last

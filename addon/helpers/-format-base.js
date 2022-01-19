@@ -11,24 +11,26 @@ import { isEmpty } from '@ember/utils';
  * @private
  * @hide
  */
-const AbstractHelper = Helper.extend({
-  intl: null,
-
-  init() {
+export default class AbstractHelper extends Helper {
+  intl = null;
+  unsubscribeLocaleChanged = null;
+  constructor() {
+    super(...arguments);
     if (this.constructor === AbstractHelper) {
       throw new Error('FormatHelper is an abstract class, can not be instantiated directly.');
     }
 
-    this._super();
     this.intl = getOwner(this).lookup('service:intl');
-    this.intl.on('localeChanged', this, 'recompute');
-  },
+    this.unsubscribeLocaleChanged = this.intl.onLocaleChanged(this.recompute, this);
+  }
 
   format() {
     throw new Error('not implemented');
-  },
+  }
 
-  compute([value], options) {
+  compute([value, positionalOptions], namedOptions) {
+    const options = positionalOptions ? Object.assign({}, positionalOptions, namedOptions) : namedOptions;
+
     if (isEmpty(value)) {
       if (options.allowEmpty ?? this.allowEmpty) {
         return;
@@ -40,12 +42,10 @@ const AbstractHelper = Helper.extend({
     }
 
     return this.format(value, options);
-  },
+  }
 
   willDestroy() {
-    this._super();
-    this.intl.off('localeChanged', this, 'recompute');
-  },
-});
-
-export default AbstractHelper;
+    super.willDestroy();
+    this.unsubscribeLocaleChanged();
+  }
+}
