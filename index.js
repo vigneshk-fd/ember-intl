@@ -60,6 +60,7 @@ module.exports = {
       errorOnNamedArgumentMismatch,
       stripEmptyTranslations,
       wrapTranslationsWithNamespace,
+      modularizeTranslations
     } = this.configOptions;
 
     const [translationTree, addonsWithTranslations] = buildTranslationTree(
@@ -77,6 +78,7 @@ module.exports = {
       errorOnNamedArgumentMismatch,
       stripEmptyTranslations,
       wrapTranslationsWithNamespace,
+      modularizeTranslations,
       verbose: !this.isSilent,
       filename: options.filename,
       outputPath: 'outputPath' in options ? options.outputPath : outputPath,

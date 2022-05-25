@@ -50,6 +50,29 @@ module.exports = function(/* environment */) {
     wrapTranslationsWithNamespace: false,
 
     /**
+		 * Paired with wrapTranslationsWithNamespace=true, considers top level folder name inside translations folder as module name
+		 * and builds the dist folder with module name as the folder name containing all language files in each.
+		 *
+		 * Ex:
+		 * With the below module wise folder structure :
+		 *  - translations/module-admin/ar.json, en.json, fr.json, ...
+		 *  - translations/module-dashboard/ar.json, en.json, fr.json, ...
+		 *
+		 * the build output structure will be as follows :
+		 *  - dist/translations/module-admin --> ar.json, en.json, fr.json, ...
+		 *  - dist/translation/module-dashboard --> ar.json, en.json, fr.json, ...
+		 *
+		 * instead of the default :
+		 *  - dist/translations/ar.json, en.json, fr.json, ... containing all the keys inside all sub-folders combined
+		 *
+		 * @property modularizeTranslations
+		 * @type {Boolean}
+		 * @default "false"
+		 * @requires wrapTranslationsWithNamespace to be set as true
+		 */
+		modularizeTranslations: false,
+
+    /**
      * Cause a build error if ICU argument mismatches are detected between translations
      * with the same key across all locales.
      *
