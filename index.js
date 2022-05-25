@@ -60,7 +60,7 @@ module.exports = {
       errorOnNamedArgumentMismatch,
       stripEmptyTranslations,
       wrapTranslationsWithNamespace,
-      modularizeTranslations
+      modularizeTranslations,
     } = this.configOptions;
 
     const [translationTree, addonsWithTranslations] = buildTranslationTree(
